@@ -439,6 +439,59 @@ Se puede concluir entonces que, El dron..
     \item Tiene la capacidad para integrar un diseño mas completo con FPV, GPS o SD. Aprovechándose la potencia que el Speedy Bee ofrece.
 \end{itemize}
 
+\subsection{23 de Octubre \label{sec:10-23}}
+\subsubsection{Aprendizajes}
+El objetivo de este día fue que el dron pudiera mantener su altura de forma automática (\textit{altitude hold}), aprovechando el barómetro DPS310 que ya integra la SpeedyBee F405 V4. BetaFlight 4.4.3 no cuenta con esta función, la cual fue incorporada a partir de la versión 2025.12, por lo que fue necesario actualizar el firmware. El dron no cuenta con GPS ni sensor de flujo óptico, por lo que puede mantener la altura pero no su posición horizontal.
+
+Antes de actualizar se respaldó la configuración completa con el comando \texttt{diff all} desde la terminal. Después se compiló el firmware BetaFlight 2026.6.2 en el servicio en línea de BetaFlight (\textit{cloud build}) con las siguientes opciones:
+\begin{itemize}
+    \item \textit{Target}: \texttt{SPEEDYBEEF405V4}.
+    \item Protocolo de radio: IBUS. Protocolo de OSD: analógico. Protocolo de motores: DSHOT.
+    \item Opciones adicionales: \textit{Altitude Hold} y \textit{Position Hold}, además de GPS, \textit{Optical Flow} y \textit{Range Finder} para futuras ampliaciones.
+\end{itemize}
+
+La instalación presentó varios problemas:
+\begin{itemize}
+    \item En el navegador Brave el configurador no lograba acceder al dispositivo, y Firefox no permite flashear porque no soporta WebUSB, el cual es necesario para comunicarse con la controladora en modo DFU (\textit{Device Firmware Upgrade}).
+    \item La orden del configurador para reiniciar la controladora en modo DFU no funcionaba: la placa se reiniciaba en modo normal y el configurador se quedaba esperando.
+\end{itemize}
+
+La solución fue realizar el proceso desde la terminal. Primero se envió el comando \texttt{bl} por la CLI, con el cual la controladora se reinició en modo DFU (identificador USB \texttt{0483:df11}, \textit{STM32 BOOTLOADER}). Después se descargó el archivo \texttt{.hex} desde el configurador y se grabó con la herramienta \texttt{dfu-util}, realizando un borrado completo de la memoria (\textit{mass erase}). El archivo contiene dos bloques de memoria (vectores en \texttt{0x08000000} y firmware a partir de \texttt{0x08008000}), por lo que se grabaron por separado para no escribir sobre el área de configuración. La controladora arrancó correctamente con BetaFlight 2026.6.2, detectando todos sus sensores.
+
+Al haber borrado la memoria, se volvió a aplicar la configuración por la terminal (tabla \ref{tab:cambios10-23}). En esta versión algunos parámetros cambiaron de nombre, por ejemplo \texttt{level\_limit} ahora es \texttt{angle\_limit}. El modo ALTHOLD se asignó al canal AUX2 (canal 6 del receptor), el cual se activó en el transmisor y se verificó en el configurador.
+
+\begin{table}[!ht]
+\centering
+\caption{Configuración aplicada en BetaFlight 2026.6.2 [Octubre 23, 2026]}
+\label{tab:cambios10-23}
+\begin{tabular}{ll}
+\hline
+Parámetro & Valor \\
+\hline
+Receptor & IBUS en UART2, mapeo AETR \\
+\texttt{motor\_pwm\_protocol} & DSHOT300 \\
+\texttt{yaw\_motors\_reversed} & ON (\textit{props out}) \\
+Armado & AUX1, 1950--2075 \\
+Modo ANGLE & Siempre activo \\
+Modo ALTHOLD (nuevo) & AUX2, 1700--2100 \\
+\texttt{angle\_limit} & 30° \\
+Rates & Mismos del 13 de octubre \\
+Calibración del acelerómetro & Restaurada del respaldo \\
+\texttt{small\_angle} & 25° (valor por defecto) \\
+PID y filtros & Valores por defecto de 2026.6.2 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Incidentes y puntos de mejora}
+\begin{itemize}
+    \item En los vuelos anteriores se observó que, en modo ANGLE, el dron no respondía al movimiento lateral (\textit{roll}) hacia ningún lado, mientras que adelante y atrás (\textit{pitch}) sí respondía. Se verificó en el configurador que el canal de roll llega completo (de 1000 a 2000), por lo que el problema no está en el control. Queda pendiente revisar el orden físico de los motores y los valores que la controladora envía a cada motor.
+    \item El peso del dron es de 497\,g, mientras que el empuje de los cuatro motores BE1806 según el fabricante es de alrededor de 520\,g. La relación empuje/peso es muy cercana a 1:1, lo que deja poco margen para maniobrar y para que el modo ALTHOLD corrija la altura.
+    \item Se debe colocar espuma sobre el barómetro para que el flujo de aire de las hélices no altere la medición de presión.
+    \item Queda pendiente la prueba de vuelo de ALTHOLD y ajustar el parámetro \texttt{ap\_hover\_throttle} con el valor real del acelerador necesario para flotar.
+    \item Los respaldos de la configuración se guardaron en la carpeta \texttt{respaldos} del proyecto.
+\end{itemize}
+
 \section{Anexos}
 
 \appendix
